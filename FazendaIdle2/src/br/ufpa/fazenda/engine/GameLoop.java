@@ -1,114 +1,149 @@
 package br.ufpa.fazenda.engine;
 
 import br.ufpa.fazenda.controller.PersonagemIA;
-import br.ufpa.fazenda.model.FazendaEstado;
-import br.ufpa.fazenda.model.Maquina;
-import br.ufpa.fazenda.model.Solo;
-import br.ufpa.fazenda.model.Vegetal;
-import br.ufpa.fazenda.model.Cercado;
-import br.ufpa.fazenda.model.Animal;
+import br.ufpa.fazenda.model.*;
 import br.ufpa.fazenda.util.Constantes;
 
 public class GameLoop extends Thread {
     
     private boolean rodando = true;
+    private boolean pausado = false;
+    
     private final FazendaEstado fazenda;
-    private GerenciadorEventos ouvinte; // A tela da Enya
+    private GerenciadorEventos ouvinte;
     
-    // Controle de tempo
-    private long ultimaAtualizacao;
-    private double acumuladorTempoDia = 0.0;
-    
-    // Controle de tempo para animais
+    // Controle de tempo para animais (em segundos)
     private double acumuladorTempoAnimal = 0.0;
-    private static final double INTERVALO_ANIMAL = 0.5; // Atualizar animais a cada 0.5s
-    
-    // Sistema de IA do Personagem
+    private static final double INTERVALO_ANIMAL = 0.5;
+
+    // IA
     private PersonagemIA personagemIA;
     private boolean modoIAActivo = false;
+    
+    // Controle de tempo para dia (em segundos)
+    private double acumuladorTempoDia = 0.0;
     
     public GameLoop(GerenciadorEventos ouvinte) {
         this.fazenda = FazendaEstado.getInstance();
         this.ouvinte = ouvinte;
         this.personagemIA = new PersonagemIA(fazenda);
-        this.ultimaAtualizacao = System.currentTimeMillis();
     }
     
+    // --- CONTROLE DO LOOP ---
+    
+    public void alternarPause() {
+        this.pausado = !this.pausado;
+        if (ouvinte != null) {
+            ouvinte.aoNotificarEvento(pausado ? "Jogo PAUSADO" : "Jogo RESUMIDO");
+        }
+    }
+    
+    public boolean isPausado() { return pausado; }
+    
+    public void parar() {
+        this.rodando = false;
+        this.pausado = true;
+        if (ouvinte != null) {
+            ouvinte.aoNotificarEvento("Jogo finalizado");
+        }
+    }
+
     @Override
     public void run() {
+        long ultimoTempo = System.currentTimeMillis();
+        long tempoAcumulado = 0;
+        
         while (rodando) {
-            long agora = System.currentTimeMillis();
-            double deltaSegundos = (agora - ultimaAtualizacao) / 1000.0;
-            ultimaAtualizacao = agora;
+            long tempoAtual = System.currentTimeMillis();
+            long tempoDecorrido = tempoAtual - ultimoTempo;
+            ultimoTempo = tempoAtual;
             
-            atualizarJogo(deltaSegundos);
+            // Acumula o tempo decorrido
+            tempoAcumulado += tempoDecorrido;
             
+            // Processa frames enquanto houver tempo acumulado
+            while (tempoAcumulado >= Constantes.OPTIMAL_TIME_MS) {
+                if (!pausado) {
+                    // Converte milissegundos para segundos
+                    atualizarJogo(Constantes.OPTIMAL_TIME_MS / 1000.0);
+                }
+                tempoAcumulado -= Constantes.OPTIMAL_TIME_MS;
+            }
+            
+            // Dorme um pouco para liberar CPU
             try {
-                // Dorme um pouco para não fritar o processador (aprox. 60 FPS)
-                Thread.sleep(16);
+                Thread.sleep(2);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
     }
     
-    private void atualizarJogo(double delta) {
+    private void atualizarJogo(double deltaSegundos) {
+        
+        // --- NOVO: CHECAGEM DE VITÓRIA ---
+        // Se ainda não venceu E atingiu a meta
+        if (!fazenda.isVitoriaAlcancada() && fazenda.getDinheiro() >= Constantes.DINHEIRO_VITORIA) {
+            fazenda.setVitoriaAlcancada(true); // Marca que venceu para não repetir
+            if (ouvinte != null) {
+                ouvinte.aoVencerJogo(); // Avisa a tela
+            }
+        }
+
         // 1. Atualizar Ciclo do Dia
-        acumuladorTempoDia += delta;
+        acumuladorTempoDia += deltaSegundos;
         if (acumuladorTempoDia >= Constantes.SEGUNDOS_POR_DIA) {
             acumuladorTempoDia = 0;
             fazenda.avancarDia();
-            // Notifica a tela que o dia mudou
+            
             if (ouvinte != null) {
-                ouvinte.aoNotificarEvento("Um novo dia começou! (Dia " + fazenda.getDiaAtual() + ")" +
-                                          " Custo de manutenção aplicado.");
+                // Notifica virada do dia
+                ouvinte.aoNotificarEvento("Dia " + fazenda.getDiaAtual() + " começou!");
+                ouvinte.aoAtualizarStatusFazenda(fazenda.getDinheiro(), fazenda.getDiaAtual(), fazenda.getEstoqueFertilizante());
             }
         }
         
-        // 2. Atualizar cada Solo (Crescimento e Automação) - apenas solos desbloqueados
+        // 2. Atualizar Solos (Crescimento e Automação)
         for (Solo solo : fazenda.getSolos()) {
-            // Ignorar solos bloqueados
             if (!solo.isDesbloqueado()) continue;
             
-            boolean houveMudanca = false;
+            boolean mudou = false;
             
             // A. Crescimento
             if (solo.isOcupado() && !solo.isPronto()) {
-                solo.atualizarTempo(delta);
-                houveMudanca = true; // O progresso mudou, precisa redesenhar
+                solo.atualizarTempo(deltaSegundos);
+                mudou = true;
             }
             
-            // B. Automação (A mágica dos robôs)
+            // B. Automação (Robôs)
             if (processarAutomacao(solo)) {
-                houveMudanca = true;
+                mudou = true;
             }
             
-            // Se algo mudou, avisa a tela para redesenhar ESTE solo
-            if (houveMudanca && ouvinte != null) {
+            // Notificar tela se houve mudança visual (cresceu ou máquina agiu)
+            if (mudou && ouvinte != null) {
                 ouvinte.aoAtualizarSolo(solo);
             }
         }
         
-        // 3. Atualizar Animais (com intervalo controlado)
-        acumuladorTempoAnimal += delta;
+        // 3. Animais
+        acumuladorTempoAnimal += deltaSegundos;
         if (acumuladorTempoAnimal >= INTERVALO_ANIMAL) {
             acumuladorTempoAnimal = 0;
             for (Cercado cercado : fazenda.getCercados()) {
                 cercado.atualizarTempo(INTERVALO_ANIMAL);
-                if (cercado.isProdutoPronto() && ouvinte != null) {
-                    ouvinte.aoNotificarEvento(cercado.getEspecie().getNome() + 
-                                            " no cercado " + (cercado.getId() + 1) + 
-                                            " produziu " + cercado.getEspecie().getProduto() + "!");
-                }
+                
+                // Notifica produção se estiver pronta (Opcional, pode gerar spam de eventos)
+                // if (cercado.isProdutoPronto() && ouvinte != null) { ... }
             }
         }
         
-        // 4. Atualizar PersonagemIA (se estiver ativo)
+        // 4. IA Automática (Botão "Jogar Sozinho")
         if (modoIAActivo) {
-            personagemIA.atualizar(delta);
+            personagemIA.atualizar(deltaSegundos);
         }
         
-        // 5. Atualizar HUD Geral (sempre bom garantir)
+        // 5. Atualizar HUD Geral (garantia)
         if (ouvinte != null) {
             ouvinte.aoAtualizarStatusFazenda(
                 fazenda.getDinheiro(), 
@@ -120,46 +155,41 @@ public class GameLoop extends Thread {
     
     /**
      * Lógica dos Tratores e Aradores.
-     * Retorna TRUE se alguma ação foi feita.
      */
     private boolean processarAutomacao(Solo solo) {
         boolean agiu = false;
         
-        // TRATOR: Colhe se estiver pronto
+        // TRATOR: Colhe se estiver pronto (não precisa alterar)
         if (solo.temMaquina(Maquina.TRATOR) && solo.isPronto()) {
-            double valorColheita = solo.colher(); // Já inclui todos os bônus
+            // CORREÇÃO: Pegar o vegetal ANTES de colher para poder mostrar o nome
+            Vegetal v = solo.getVegetal(); 
+            double valorColheita = solo.colher(); 
             
             fazenda.ganharDinheiro(valorColheita);
             agiu = true;
             
-            if (ouvinte != null) {
-                Vegetal vegetalColhido = solo.getVegetal(); // Pega antes de limpar
-                if (vegetalColhido != null) {
-                    ouvinte.aoNotificarEvento("Trator vendeu " + vegetalColhido.getNome() + 
-                                            " por R$" + String.format("%.2f", valorColheita));
-                }
+            if (ouvinte != null && v != null) {
+                ouvinte.aoNotificarEvento("Trator vendeu " + v.getNome() + 
+                                        " por R$" + String.format("%.2f", valorColheita));
             }
         }
         
-        // ARADOR: Planta se estiver vazio
+        // ARADOR: Planta se estiver vazio E NÃO estiver bloqueado
         if (solo.temMaquina(Maquina.ARADOR) && !solo.isOcupado()) {
-            // Usa o último vegetal plantado na fazenda
+            // Verifica se o solo está bloqueado para replantio automático
+            if (solo.isBloqueadoReplantioAutomatico()) {
+                return agiu; // Não planta automaticamente em solo bloqueado
+            }
+            
             Vegetal paraPlantar = fazenda.getUltimoVegetalPlantado();
             
-            // Verifica se tem dinheiro para o vegetal (simplificado)
-            // Em um sistema mais complexo, teríamos custo de sementes
             if (paraPlantar != null) {
-                // Aplica fertilizante se estiver ativado e houver estoque
-                if (solo.isFertilizanteAtivado() && fazenda.getEstoqueFertilizante() > 0) {
-                    solo.aplicarFertilizante();
-                }
-                
-                solo.plantar(paraPlantar);
-                agiu = true;
-                
-                if (ouvinte != null) {
-                    ouvinte.aoNotificarEvento("Arador plantou " + paraPlantar.getNome() + 
-                                            " no Solo " + (solo.getId() + 1));
+                // Usa o método com flag de automático
+                if (solo.plantar(paraPlantar, true)) {
+                    agiu = true;
+                    if (ouvinte != null) {
+                        ouvinte.aoNotificarEvento("Arador plantou " + paraPlantar.getNome());
+                    }
                 }
             }
         }
@@ -167,128 +197,17 @@ public class GameLoop extends Thread {
         return agiu;
     }
     
-    /**
-     * Método para coletar produtos dos animais manualmente (chamado pela interface)
-     */
-    public double coletarProdutosAnimais(int cercadoId) {
-        if (cercadoId < 0 || cercadoId >= fazenda.getCercados().size()) {
-            return 0.0;
-        }
-        
-        Cercado cercado = fazenda.getCercados().get(cercadoId);
-        double valor = cercado.coletarProdutos();
-        
-        if (valor > 0) {
-            fazenda.ganharDinheiro(valor);
-            if (ouvinte != null) {
-                ouvinte.aoNotificarEvento("Coletou " + cercado.getEspecie().getProduto() + 
-                                        " do cercado " + (cercadoId + 1) + 
-                                        " por R$" + String.format("%.2f", valor));
-            }
-        }
-        
-        return valor;
-    }
+    // --- MÉTODOS DE CONTROLE DA IA ---
     
-    /**
-     * Método para adicionar animal manualmente (chamado pela interface)
-     * NOTA: Este método é usado apenas para adição gratuita (inicialização).
-     * Para compra, use comprarAnimal().
-     */
-    public boolean adicionarAnimal(int cercadoId, Animal animal) {
-        if (cercadoId < 0 || cercadoId >= fazenda.getCercados().size()) {
-            return false;
-        }
-        
-        Cercado cercado = fazenda.getCercados().get(cercadoId);
-        boolean sucesso = cercado.adicionarAnimal(animal);
-        
-        if (sucesso && ouvinte != null) {
-            ouvinte.aoNotificarEvento("Adicionou " + animal.getNome() + 
-                                    " ao cercado " + (cercadoId + 1));
-        }
-        
-        return sucesso;
-    }
-    
-    /**
-     * Método para comprar um animal (com custo)
-     */
-    public boolean comprarAnimal(int cercadoId) {
-        if (cercadoId < 0 || cercadoId >= fazenda.getCercados().size()) {
-            return false;
-        }
-        
-        boolean sucesso = fazenda.comprarAnimal(cercadoId);
-        
-        if (sucesso && ouvinte != null) {
-            Cercado cercado = fazenda.getCercados().get(cercadoId);
-            double preco = cercado.getEspecie().getPrecoCompra();
-            int quantidade = cercado.getQuantidade();
-            
-            ouvinte.aoNotificarEvento("Comprou " + cercado.getEspecie().getNome() + 
-                                    " para cercado " + (cercadoId + 1) + 
-                                    " por R$" + String.format("%.2f", preco) + 
-                                    " (Total: " + quantidade + "/3)");
-        }
-        
-        return sucesso;
-    }
-    
-    /**
-     * Método para desbloquear um solo
-     */
-    public boolean desbloquearSolo(int soloId) {
-        if (soloId < 0 || soloId >= fazenda.getSolos().size()) {
-            return false;
-        }
-        
-        boolean sucesso = fazenda.desbloquearSolo(soloId);
-        
-        if (sucesso && ouvinte != null) {
-            ouvinte.aoNotificarEvento("Solo " + (soloId + 1) + " desbloqueado por R$300!");
-        }
-        
-        return sucesso;
-    }
-    
-    /**
-     * Método para ativar a IA do Personagem
-     */
     public void ativarIA() {
         modoIAActivo = true;
         personagemIA.ativar();
-        if (ouvinte != null) {
-            ouvinte.aoNotificarEvento("Modo IA do Personagem ATIVADO");
-        }
+        if (ouvinte != null) ouvinte.aoNotificarEvento("Modo IA ATIVADO");
     }
     
-    /**
-     * Método para desativar a IA do Personagem
-     */
     public void desativarIA() {
         modoIAActivo = false;
         personagemIA.desativar();
-        if (ouvinte != null) {
-            ouvinte.aoNotificarEvento("Modo IA do Personagem DESATIVADO");
-        }
-    }
-    
-    /**
-     * Verifica se a IA está ativa
-     */
-    public boolean isIAActivo() {
-        return modoIAActivo;
-    }
-    
-    /**
-     * Retorna a instância da PersonagemIA
-     */
-    public PersonagemIA getPersonagemIA() {
-        return personagemIA;
-    }
-    
-    public void parar() {
-        this.rodando = false;
+        if (ouvinte != null) ouvinte.aoNotificarEvento("Modo IA DESATIVADO");
     }
 }

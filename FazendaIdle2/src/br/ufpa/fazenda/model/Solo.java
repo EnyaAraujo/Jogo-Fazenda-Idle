@@ -6,156 +6,168 @@ import java.util.Set;
 
 public class Solo {
     
-    private int id; // Para identificar o solo (0, 1, 2...)
-    private int nivel; // Nível do solo (1-10 conforme documentação)
-    private boolean desbloqueado; // Indica se o solo está desbloqueado
+    private int id;
+    private int nivel;
+    private boolean desbloqueado;
     private Vegetal vegetalPlantado;
-    private double progressoCrescimento; // 0.0 a 1.0 (1.0 = pronto)
+    private double progressoCrescimento; 
     
-    // Configurações
     private Set<Maquina> maquinasInstaladas;
-    private boolean fertilizanteAtivado; // O interruptor do usuário
-    private boolean estaComFertilizanteAplicado; // Se a planta atual recebeu o efeito
+    private boolean fertilizanteAtivado;
+    private boolean estaComFertilizanteAplicado;
+    
+    private boolean bloqueadoReplantioAutomatico = false;
+    
+    private final Object lock = new Object();
     
     public Solo(int id, boolean desbloqueadoInicialmente) {
         this.id = id;
-        this.nivel = 1; // Nível inicial
+        this.nivel = 1;
         this.desbloqueado = desbloqueadoInicialmente;
         this.maquinasInstaladas = new HashSet<>();
         this.fertilizanteAtivado = false;
         limparSolo();
     }
     
-    /**
-     * Tenta plantar um vegetal.
-     * Retorna true se conseguiu, false se já estava ocupado.
-     */
-    public boolean plantar(Vegetal vegetal) {
-        if (vegetalPlantado != null || !desbloqueado) return false; // Solo ocupado ou bloqueado
-        
-        this.vegetalPlantado = vegetal;
-        this.progressoCrescimento = 0.0;
-        
-        // Lógica do Fertilizante:
-        // Se o botão estiver ligado E a fazenda tiver estoque (verificaremos estoque depois na integração)
-        if (fertilizanteAtivado) {
-            // Aqui futuramente chamaremos FazendaEstado.getInstance().consumirFertilizante()
-            this.estaComFertilizanteAplicado = true; 
-        } else {
-            this.estaComFertilizanteAplicado = false;
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Força a plantação de um vegetal, substituindo o atual se houver.
-     * Retorna true se conseguiu plantar.
-     */
-    public boolean plantarSubstituindo(Vegetal vegetal) {
-        if (!desbloqueado) return false;
-        
-        // Se já estiver ocupado, arranca a planta atual
-        if (vegetalPlantado != null) {
-            arrancar();
-        }
-        
-        return plantar(vegetal);
-    }
-    
-    /**
-     * Calcula o valor de venda com todos os bônus aplicados.
-     * Inclui: bônus por nível do solo, irrigador e fertilizante.
-     */
-    public double calcularValorVenda() {
-        if (vegetalPlantado == null) return 0.0;
-        
-        double valorBase = vegetalPlantado.getValorVenda();
-        double multiplicador = 1.0;
-        
-        // 1. Bônus por nível do solo (+20% por nível)
-        multiplicador += (nivel - 1) * Constantes.BONUS_SOLO_NV_VALOR;
-        
-        // 2. Bônus do Irrigador (+25% valor)
-        if (maquinasInstaladas.contains(Maquina.IRRIGADOR)) {
-            multiplicador += Constantes.BONUS_IRRIGADOR_VALOR;
-        }
-        
-        // 3. Bônus do Fertilizante (+50% valor)
-        if (estaComFertilizanteAplicado) {
-            multiplicador += Constantes.BONUS_FERTILIZANTE_VALOR;
-        }
-        
-        return valorBase * multiplicador;
-    }
-    
-    /**
-     * Método chamado pelo GameLoop a cada X milissegundos.
-     * @param deltaTempoSegundos Quanto tempo passou desde o último update
-     */
-    public void atualizarTempo(double deltaTempoSegundos) {
-        if (vegetalPlantado == null) return;
-        if (progressoCrescimento >= 1.0) return; // Já está maduro
-        
-        // 1. Calcula o tempo base em segundos (Ex: Alface 2 dias * 15s = 30s)
-        double tempoTotalNecessario = vegetalPlantado.getTempoEmSegundos();
-        
-        // 2. Aplica REDUTORES de tempo (Irrigador, Fertilizante, Nível do Solo)
-        double fatorReducao = 0.0;
-        
-        if (maquinasInstaladas.contains(Maquina.IRRIGADOR)) {
-            fatorReducao += Constantes.BONUS_IRRIGADOR_TEMPO;
-        }
-        
-        if (estaComFertilizanteAplicado) {
-            fatorReducao += Constantes.BONUS_FERTILIZANTE_TEMPO;
-        }
-        
-        // Bônus de nível (Nível 1 não dá bônus, Nível 2 dá 10%...)
-        fatorReducao += (nivel - 1) * Constantes.BONUS_SOLO_NV_CRESCIMENTO;
-        
-        // Limite de segurança: nunca reduzir mais que 90% do tempo
-        if (fatorReducao > 0.9) fatorReducao = 0.9;
-        
-        double tempoFinal = tempoTotalNecessario * (1.0 - fatorReducao);
-        
-        // 3. Incrementa o progresso
-        // Se tempoFinal é 10s e passou 1s, aumentamos 0.1 (10%)
-        this.progressoCrescimento += (deltaTempoSegundos / tempoFinal);
-        
-        if (this.progressoCrescimento > 1.0) this.progressoCrescimento = 1.0;
-    }
-    
-    /**
-     * Colhe o vegetal e retorna o valor de venda.
-     */
-    public double colher() {
-        if (progressoCrescimento < 1.0 || vegetalPlantado == null) return 0.0;
-        
-        double valorVenda = calcularValorVenda();
-        limparSolo();
-        return valorVenda;
-    }
-    
-    /**
-     * Arranca a planta atual sem colher (sem ganhar dinheiro).
-     */
-    public void arrancar() {
-        limparSolo();
-    }
-    
-    /**
-     * Aplica fertilizante na planta atual (se houver estoque).
-     */
-    public boolean aplicarFertilizante() {
-        if (vegetalPlantado == null || estaComFertilizanteAplicado) return false;
-        
-        FazendaEstado fazenda = FazendaEstado.getInstance();
-        if (fazenda.consumirFertilizanteDoEstoque()) {
-            this.estaComFertilizanteAplicado = true;
+    public boolean plantar(Vegetal vegetal, boolean automatico) {
+        synchronized (lock) {
+            if (automatico && bloqueadoReplantioAutomatico) return false;
+            
+            if (!automatico) this.bloqueadoReplantioAutomatico = false;
+            
+            if (vegetalPlantado != null || !desbloqueado) return false;
+            
+            this.vegetalPlantado = vegetal;
+            this.progressoCrescimento = 0.0;
+            
+            if (fertilizanteAtivado) {
+                 aplicarFertilizante();
+            } else {
+                this.estaComFertilizanteAplicado = false;
+            }
+            
             return true;
         }
-        return false;
+    }
+    
+    // Método original mantido para compatibilidade
+    public boolean plantar(Vegetal vegetal) {
+        return plantar(vegetal, false);
+    }
+    
+    public boolean aplicarFertilizante() {
+        synchronized (lock) {
+            if (estaComFertilizanteAplicado) return false;
+            
+            if (FazendaEstado.getInstance().consumirFertilizanteDoEstoque()) {
+                this.estaComFertilizanteAplicado = true;
+                return true;
+            }
+            return false;
+        }
+    }
+    
+    public void atualizarTempo(double deltaTempoSegundos) {
+        synchronized (lock) {
+            if (vegetalPlantado == null) return;
+            if (progressoCrescimento >= 1.0) return;
+            
+            double tempoTotalNecessario = vegetalPlantado.getTempoEmSegundos();
+            double fatorReducao = 0.0;
+            
+            for (Maquina m : maquinasInstaladas) {
+                fatorReducao += m.aplicarReducaoTempo(tempoTotalNecessario);
+            }
+            if (estaComFertilizanteAplicado) {
+                fatorReducao += Constantes.BONUS_FERTILIZANTE_TEMPO;
+            }
+            fatorReducao += (nivel - 1) * Constantes.BONUS_SOLO_NV_CRESCIMENTO;
+            
+            if (fatorReducao > 0.9) fatorReducao = 0.9;
+            
+            double tempoFinal = tempoTotalNecessario * (1.0 - fatorReducao);
+            
+            this.progressoCrescimento += (deltaTempoSegundos / tempoFinal);
+            
+            if (this.progressoCrescimento > 1.0) this.progressoCrescimento = 1.0;
+        }
+    }
+    
+    public double calcularValorVenda() {
+        synchronized (lock) {
+            if (vegetalPlantado == null) return 0.0;
+            
+            double valorBase = vegetalPlantado.getValorVenda();
+            double valorFinal = valorBase;
+            
+            valorFinal += valorBase * ((nivel - 1) * Constantes.BONUS_SOLO_NV_VALOR);
+            
+            for (Maquina m : maquinasInstaladas) {
+                valorFinal += m.aplicarBonusValor(valorBase);
+            }
+            
+            if (estaComFertilizanteAplicado) {
+                valorFinal += valorBase * Constantes.BONUS_FERTILIZANTE_VALOR;
+            }
+            
+            return valorFinal;
+        }
+    }
+    
+    /**
+     * Gera uma string HTML com o detalhamento dos lucros para a interface gráfica.
+     */
+    public String getEstimativaLucroHTML() {
+        synchronized (lock) {
+            if (vegetalPlantado == null) return "<html><center>Sem Plantação</center></html>";
+
+            double base = vegetalPlantado.getValorVenda();
+            double bonusNivel = base * ((nivel - 1) * Constantes.BONUS_SOLO_NV_VALOR);
+            
+            double bonusMaquinas = 0;
+            for (Maquina m : maquinasInstaladas) {
+                bonusMaquinas += m.aplicarBonusValor(base);
+            }
+            
+            double bonusFert = 0;
+            // Calculamos o bônus potencial se o fertilizante estiver ATIVADO (mesmo se não aplicado ainda na visualização)
+            if (fertilizanteAtivado || estaComFertilizanteAplicado) {
+                bonusFert = base * Constantes.BONUS_FERTILIZANTE_VALOR;
+            }
+
+            double total = base + bonusNivel + bonusMaquinas + bonusFert;
+
+            // Formatação HTML para o JLabel
+            StringBuilder sb = new StringBuilder("<html><body style='text-align: center; font-family: Arial; font-size: 10px;'>");
+            sb.append(String.format("Base: R$ %.2f<br>", base));
+            
+            if (bonusNivel > 0) sb.append(String.format("<font color='blue'>+ Nível %d: R$ %.2f</font><br>", nivel, bonusNivel));
+            if (bonusMaquinas > 0) sb.append(String.format("<font color='green'>+ Máquinas: R$ %.2f</font><br>", bonusMaquinas));
+            if (bonusFert > 0) sb.append(String.format("<font color='purple'>+ Fertilizante: R$ %.2f</font><br>", bonusFert));
+            
+            sb.append("<hr>");
+            sb.append(String.format("<b>Total: R$ %.2f</b>", total));
+            sb.append("</body></html>");
+            
+            return sb.toString();
+        }
+    }
+    
+    public double colher() {
+        synchronized (lock) {
+            if (progressoCrescimento < 1.0 || vegetalPlantado == null) return 0.0;
+            
+            double valorVenda = calcularValorVenda();
+            limparSolo();
+            return valorVenda;
+        }
+    }
+    
+    public void arrancar() {
+        synchronized (lock) {
+            limparSolo();
+            this.bloqueadoReplantioAutomatico = true; 
+        }
     }
     
     private void limparSolo() {
@@ -164,79 +176,54 @@ public class Solo {
         this.estaComFertilizanteAplicado = false;
     }
 
-    // --- Instalação de Máquinas ---
-    
     public void instalarMaquina(Maquina maquina) {
-        if (!desbloqueado) return;
-        maquinasInstaladas.add(maquina);
+        synchronized (lock) {
+            if (!desbloqueado) return;
+            maquinasInstaladas.add(maquina);
+        }
     }
     
     public void removerMaquina(Maquina maquina) {
-        maquinasInstaladas.remove(maquina);
+        synchronized (lock) {
+            maquinasInstaladas.remove(maquina);
+        }
     }
     
     public boolean temMaquina(Maquina maquina) {
-        return maquinasInstaladas.contains(maquina);
+        synchronized (lock) {
+            return maquinasInstaladas.contains(maquina);
+        }
     }
     
-    // --- Upgrade do Solo ---
-    
-    /**
-     * Melhora o nível do solo (custo: R$ 100 × nível atual).
-     * Retorna true se conseguiu fazer o upgrade.
-     */
     public boolean upgrade() {
-        if (nivel >= 10 || !desbloqueado) return false; // Nível máximo ou solo bloqueado
-        
-        double custoUpgrade = 100.0 * nivel;
-        FazendaEstado fazenda = FazendaEstado.getInstance();
-        
-        if (fazenda.gastarDinheiro(custoUpgrade)) {
+        synchronized (lock) {
+            if (nivel >= 10 || !desbloqueado) return false;
             nivel++;
             return true;
         }
-        return false;
     }
     
-    // --- Desbloqueio do Solo ---
-    
-    /**
-     * Desbloqueia o solo (custo: R$ 300).
-     * Retorna true se conseguiu desbloquear.
-     */
     public boolean desbloquear() {
-        if (desbloqueado) return true; // Já está desbloqueado
-        
-        double custoDesbloqueio = 300.0;
-        FazendaEstado fazenda = FazendaEstado.getInstance();
-        
-        if (fazenda.gastarDinheiro(custoDesbloqueio)) {
+        synchronized (lock) {
+            if (desbloqueado) return true;
             this.desbloqueado = true;
             return true;
         }
-        return false;
     }
 
-    // --- Getters e Setters para a Interface Gráfica ---
-    
-    public int getId() { return id; }
-    public int getNivel() { return nivel; }
-    public boolean isDesbloqueado() { return desbloqueado; }
-    public boolean isOcupado() { return vegetalPlantado != null; }
-    public boolean isPronto() { return progressoCrescimento >= 1.0; }
-    public double getProgresso() { return progressoCrescimento; }
-    public Vegetal getVegetal() { return vegetalPlantado; }
-    public Set<Maquina> getMaquinasInstaladas() { return new HashSet<>(maquinasInstaladas); }
-    
-    public void setFertilizanteAtivado(boolean ativo) { 
-        this.fertilizanteAtivado = ativo; 
+    public int getId() { synchronized (lock) { return id; } }
+    public int getNivel() { synchronized (lock) { return nivel; } }
+    public boolean isDesbloqueado() { synchronized (lock) { return desbloqueado; } }
+    public boolean isOcupado() { synchronized (lock) { return vegetalPlantado != null; } }
+    public boolean isPronto() { synchronized (lock) { return progressoCrescimento >= 1.0; } }
+    public double getProgresso() { synchronized (lock) { return progressoCrescimento; } }
+    public Vegetal getVegetal() { synchronized (lock) { return vegetalPlantado; } }
+    public Set<Maquina> getMaquinasInstaladas() { 
+        synchronized (lock) { return new HashSet<>(maquinasInstaladas); } 
     }
-    
-    public boolean isFertilizanteAtivado() { 
-        return fertilizanteAtivado; 
-    }
-    
-    public boolean isEstaComFertilizanteAplicado() { 
-        return estaComFertilizanteAplicado; 
-    }
+    public void setFertilizanteAtivado(boolean ativo) { synchronized (lock) { this.fertilizanteAtivado = ativo; } }
+    public boolean isFertilizanteAtivado() { synchronized (lock) { return fertilizanteAtivado; } }
+    public boolean isEstaComFertilizanteAplicado() { synchronized (lock) { return estaComFertilizanteAplicado; } }
+    public boolean isBloqueadoReplantioAutomatico() { synchronized (lock) { return bloqueadoReplantioAutomatico; } }
+    public void desbloquearReplantioAutomatico() { synchronized (lock) { this.bloqueadoReplantioAutomatico = false; } }
 }

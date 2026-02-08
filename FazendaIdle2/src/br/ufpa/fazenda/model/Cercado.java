@@ -7,10 +7,9 @@ public class Cercado {
     private int id;
     private Animal especie;
     private int quantidadeAnimais;
-    private static final int CAPACIDADE_MAXIMA = 3;
     
     // Controle de Produção
-    private double progressoProducao; // 0.0 a 1.0
+    private double progressoProducao; 
     private boolean produtoPronto;
     
     public Cercado(int id) {
@@ -20,35 +19,22 @@ public class Cercado {
         this.produtoPronto = false;
     }
     
-    /**
-     * Tenta adicionar um animal ao cercado.
-     * Só aceita se for da mesma espécie (ou se estiver vazio) e se houver espaço.
-     */
     public boolean adicionarAnimal(Animal animal) {
-        // Se está vazio, define a espécie
         if (quantidadeAnimais == 0) {
             this.especie = animal;
         }
         
-        // Validações
-        if (this.especie != animal) return false; // Espécie errada
-        if (quantidadeAnimais >= CAPACIDADE_MAXIMA) return false; // Lotado
+        if (this.especie != animal) return false; 
+        if (quantidadeAnimais >= Constantes.CAPACIDADE_POR_CERCADO) return false; 
         
         this.quantidadeAnimais++;
         return true;
     }
     
-    /**
-     * Atualiza o tempo de produção dos animais.
-     * @param deltaTempoSegundos Tempo passado no loop
-     */
     public void atualizarTempo(double deltaTempoSegundos) {
         if (quantidadeAnimais == 0 || produtoPronto) return;
         
-        // Usa o tempo específico da espécie do animal
         double tempoNecessario = especie.getTempoProducaoSegundos();
-        
-        // Incrementa progresso
         this.progressoProducao += (deltaTempoSegundos / tempoNecessario);
         
         if (this.progressoProducao >= 1.0) {
@@ -60,10 +46,8 @@ public class Cercado {
     public double coletarProdutos() {
         if (!produtoPronto || quantidadeAnimais == 0) return 0.0;
         
-        // Valor = Valor do produto * quantidade de animais
         double valorTotal = especie.getProdutoValor() * quantidadeAnimais;
         
-        // Reseta o ciclo
         this.produtoPronto = false;
         this.progressoProducao = 0.0;
         
@@ -74,15 +58,29 @@ public class Cercado {
         if (quantidadeAnimais == 0) return 0.0;
         return especie.getCustoManutencaoDiaria() * quantidadeAnimais;
     }
+    
+    /**
+     * Gera string HTML com receita e custo para a GUI.
+     */
+    public String getDetalhesLucroHTML() {
+        if (quantidadeAnimais == 0) return "<html><center>Vazio</center></html>";
+        
+        double receita = especie.getProdutoValor() * quantidadeAnimais;
+        double custoDia = especie.getCustoManutencaoDiaria() * quantidadeAnimais;
+        
+        StringBuilder sb = new StringBuilder("<html><body style='text-align: center; font-family: Arial; font-size: 10px;'>");
+        sb.append(String.format("<font color='green'>Receita: R$ %.2f / ciclo</font><br>", receita));
+        sb.append(String.format("<font color='red'>Custo: -R$ %.2f / dia</font>", custoDia));
+        sb.append("</body></html>");
+        
+        return sb.toString();
+    }
 
-    // --- Getters ---
     public int getId() { return id; }
     public int getQuantidade() { return quantidadeAnimais; }
     public Animal getEspecie() { return especie; }
     public boolean isProdutoPronto() { return produtoPronto; }
     public double getProgresso() { return progressoProducao; }
     public boolean isVazio() { return quantidadeAnimais == 0; }
-    
-    // Para a interface gráfica saber quantos slots estão ocupados
-    public int getCapacidadeMaxima() { return CAPACIDADE_MAXIMA; }
+    public int getCapacidadeMaxima() { return Constantes.CAPACIDADE_POR_CERCADO; }
 }

@@ -355,13 +355,19 @@ public class PersonagemIA {
         if (vegetal == null) return false;
         
         Solo solo = fazenda.getSolos().get(soloId);
+        
+        // Verifica se o solo está bloqueado para replantio automático
+        if (solo.isBloqueadoReplantioAutomatico()) {
+            return false; // Não planta automaticamente em solo bloqueado
+        }
+        
         if (!solo.isDesbloqueado() || solo.isOcupado()) return false;
         
-        boolean plantou = solo.plantar(vegetal);
+        // Chama o método com flag de automático
+        boolean plantou = solo.plantar(vegetal, true);
         if (plantou) {
             fazenda.setUltimoVegetalPlantado(vegetal);
             
-            // Consome fertilizante se estiver ativado
             if (solo.isFertilizanteAtivado()) {
                 solo.aplicarFertilizante();
             }

@@ -17,4 +17,7 @@ public interface GerenciadorEventos {
     
     // (Opcional) Para tocar sons ou mostrar mensagens
     void aoNotificarEvento(String mensagem);
+
+    // --- NOVO EVENTO ---
+    void aoVencerJogo(); 
 }
