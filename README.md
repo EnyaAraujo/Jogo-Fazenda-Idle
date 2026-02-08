@@ -8,13 +8,14 @@
 - [1. 🎓 Informações Acadêmicas](#1-🎓-informações-acadêmicas)
 - [2. 👥 Equipe de Desenvolvimento](#2-👥-equipe-de-desenvolvimento)
 - [3. 🎯 Objetivos do Projeto](#3-🎯-objetivos-do-projeto)
-- [4. 🏗️ Arquitetura de Classes](#4-🏗️-arquitetura-de-classes)
-- [5. 🎮 Lógica de Controle Dupla](#5-🎮-lógica-de-controle-dupla)
-- [6. 🤖 Sistema de Máquinas e Consumíveis](#6-🤖-sistema-de-máquinas-e-consumíveis)
-- [7. ⚙️ Classe Fazenda](#7-⚙️-classe-fazenda)
-- [8. 📊 Regras de Negócio](#8-📊-regras-de-negócio)
-- [9. 🎨 Implementação Gráfica com Swing](#9-🎨-implementação-gráfica-com-swing)
-- [10. 📅 Cronograma e Metodologia](#10-📅-cronograma-e-metodologia)
+- [4. 🏗️ Padrões de Projeto](#4-🏗️-padrões-de-projeto)
+- [5. 🏗️ Arquitetura de Classes](#5-🏗️-arquitetura-de-classes)
+- [6. 🎮 Lógica de Controle Dupla](#6-🎮-lógica-de-controle-dupla)
+- [7. 🤖 Sistema de Máquinas e Consumíveis](#7-🤖-sistema-de-máquinas-e-consumíveis)
+- [8. ⚙️ Classe Fazenda](#8-⚙️-classe-fazenda)
+- [9. 📊 Regras de Negócio](#9-📊-regras-de-negócio)
+- [10. 🎨 Implementação Gráfica com Swing](#10-🎨-implementação-gráfica-com-swing)
+- [11. 📅 Cronograma e Metodologia](#11-📅-cronograma-e-metodologia)
 
 ---
 
@@ -57,7 +58,98 @@ Este projeto foi desenvolvido como **trabalho final** para a disciplina:
 
 ---
 
-## 4. 🏗️ Arquitetura de Classes
+## 4. 🏗️ Padrões de Projeto
+
+### **1. Singleton (Instância Única)**
+**Onde:** `ExecutorTarefas`, `RenderizadorAssets`, `FazendaEstado`
+**Implementação:** Construtor privado, método `getInstance()` sincronizado
+**Propósito:** Garantir única instância de recursos globais críticos
+**Exemplo:** `FazendaEstado.getInstance()` fornece acesso global ao estado do jogo
+
+### **2. Observer (Observador)**
+**Onde:** Interface `GerenciadorEventos` + `JanelaPrincipal`
+**Implementação:** GameLoop notifica eventos através da interface
+**Propósito:** Desacoplar motor do jogo da interface gráfica
+**Métodos:** `aoAtualizarStatusFazenda()`, `aoAtualizarSolo()`, `aoVencerJogo()`
+
+### **3. Strategy (Estratégia)**
+**Onde:** Enum `Maquina` com métodos abstratos
+**Implementação:** Cada máquina implementa sua própria lógica de bônus
+**Propósito:** Comportamentos variáveis sem herança complexa
+**Exemplo:** `IRRIGADOR.aplicarBonusValor()` retorna valor diferente de `TRATOR`
+
+### **4. State (Estado)**
+**Onde:** Classe `Solo` com múltiplos estados
+**Implementação:** Estados: bloqueado/desbloqueado/ocupado/pronto
+**Propósito:** Gerenciar transições complexas de comportamento
+**Exemplo:** `solo.isPronto()` muda comportamento do método `colher()`
+
+### **5. Command (Comando)**
+**Onde:** `JanelaPrincipal.processarAcao()` com strings de comando
+**Implementação:** Ações encapsuladas como strings "CMD_XXXX"
+**Propósito:** Desacoplar invocação de execução de ações
+**Exemplo:** "CMD_PLANTAR_2_ABOBORA" dispara plantio específico
+
+### **6. Template Method (Método Template)**
+**Onde:** `GameLoop.run()` com estrutura fixa
+**Implementação:** Método `run()` define algoritmo, delega para `atualizarJogo()`
+**Propósito:** Estrutura consistente do loop com partes variáveis
+
+### **7. Factory Method (Método Fábrica)**
+**Onde:** Enums `Vegetal`, `Animal`, `Maquina`
+**Implementação:** Valores predefinidos com dados embutidos
+**Propósito:** Criar objetos com configuração consistente
+**Exemplo:** `Vegetal.ABOBORA` fornece dados prontos da abóbora
+
+### **8. Model-View-Controller (MVC)**
+**Model:** `FazendaEstado`, `Solo`, `Cercado`, enums
+**View:** `PainelFazenda`, `PainelLateral`, `JanelaPrincipal`
+**Controller:** `GameLoop`, `PersonagemIA`, `ExecutorTarefas`
+**Propósito:** Separação clara de responsabilidades
+
+### **9. Object Pool (Pool de Objetos)**
+**Onde:** `RenderizadorAssets` com cache de imagens
+**Implementação:** `HashMap` para cache + `HashSet` para ausentes
+**Propósito:** Otimizar performance evitando I/O repetido
+**Métodos:** `getImagem()` retorna do cache ou carrega do disco
+
+### **10. Priority Queue (Fila de Prioridade)**
+**Onde:** `PersonagemIA.filaTarefas` (PriorityQueue)
+**Implementação:** `PriorityQueue<Decisao>` ordenada por lucro esperado
+**Propósito:** Processar tarefas mais lucrativas primeiro
+**Ordenação:** Comparator baseado em `valorEsperado`
+
+### **11. Lock (Bloqueio) - Padrão de Concorrência**
+**Onde:** `FazendaEstado` com `ReentrantLock`, `Solo` com `synchronized`
+**Implementação:** `lock.lock()`/`lock.unlock()` em blocos try-finally
+**Propósito:** Thread safety em acesso concorrente
+**Exemplo:** Métodos `gastarDinheiro()` e `ganharDinheiro()` protegidos
+
+### **12. Event Listener (Ouvinte de Eventos)**
+**Onde:** `GerenciadorEventos` + `ActionListener` em `JanelaPrincipal`
+**Implementação:** Implementação de interfaces de callback
+**Propósito:** Sistema flexível de resposta a eventos
+**Exemplo:** Cliques do mouse disparam ações via `actionPerformed()`
+
+### **13. Card Layout (Layout de Cartões)**
+**Onde:** `PainelLateral` com `CardLayout`
+**Implementação:** Alternância entre "GERAL", "SOLO", "LOJA", "CERCADO"
+**Propósito:** Interface modular com transição suave entre telas
+
+### **14. Decorator (Decorador) - Implícito**
+**Onde:** Cálculo de bônus em `Solo.calcularValorVenda()`
+**Implementação:** Bônus acumulativos (nível + máquinas + fertilizante)
+**Propósito:** Adicionar funcionalidades dinamicamente
+**Exemplo:** Valor base + bônus nível + bônus irrigador + bônus fertilizante
+
+### **15. Iterator (Iterador) - Via Collections**
+**Onde:** Loops `for` em coleções: `for (Solo solo : fazenda.getSolos())`
+**Implementação:** Uso de `List` e `Map` do Java Collections Framework
+**Propósito:** Acesso uniforme a elementos sem expor estrutura interna
+
+---
+
+## 5. 🏗️ Arquitetura de Classes
 
 ### 🌿 Classe Vegetal
 Define os atributos estáticos das plantas cultiváveis.
@@ -116,7 +208,7 @@ Gerencia grupos de até 3 animais da mesma espécie.
 
 ---
 
-## 5. 🎮 Lógica de Controle Dupla
+## 6. 🎮 Lógica de Controle Dupla
 
 ### 🤖 Modo Automático (Padrão)
 Controlado pela **Classe PersonagemIA**
@@ -143,7 +235,7 @@ Jogador controla diretamente o personagem.
 
 ---
 
-## 6. 🤖 Sistema de Máquinas e Consumíveis
+## 7. 🤖 Sistema de Máquinas e Consumíveis
 
 ### 🚜 Sistema de Máquinas Permanentes
 Cada máquina deve ser comprada individualmente e atribuída a um solo específico.
@@ -209,7 +301,7 @@ Estoque Fertilizante: 10/10 aplicações
 
 ---
 
-## 7. ⚙️ Classe Fazenda
+## 8. ⚙️ Classe Fazenda
 
 **Atributos Principais:**
 - `dinheiro` 💰 (saldo atual)
@@ -226,7 +318,7 @@ Estoque Fertilizante: 10/10 aplicações
 
 ---
 
-## 8. 📊 Regras de Negócio
+## 9. 📊 Regras de Negócio
 
 | Item | Tipo | Frequência | Custo/Valor |
 |------|------|------------|-------------|
@@ -243,7 +335,7 @@ Estoque Fertilizante: 10/10 aplicações
 
 ---
 
-## 9. 🎨 Implementação Gráfica com Swing
+## 10. 🎨 Implementação Gráfica com Swing
 
 ### ✅ Vantagens
 1. 🏗️ **Integração Nativa com NetBeans**
@@ -255,24 +347,18 @@ Estoque Fertilizante: 10/10 aplicações
 ### 🖼️ Sistema Visual
 
 **Indicadores de Máquinas/Fertilizante:**
-- Ícones flutuantes acima de cada solo
-- Cores: Verde (ativo), Cinza (inativo), Vermelho (sem estoque)
-- Tooltips com status detalhado
+- Ícones flutuantes no lado de cada solo
 
-**Animações Especiais:**
-- 💨 Partículas ao aplicar fertilizante
-- 🌈 Brilho nas plantas com fertilizante ativo
-- 🔄 Rotação sutil nas máquinas ativas
 
 **Interface de Configuração:**
-- Painel flutuante ao clicar em um solo
+- Painel flutuant ao clicar em um solo
 - Controles deslizantes para ativar/desativar
 - Barra de progresso do estoque de fertilizante
 - Botão de compra rápida quando estoque baixo
 
 ---
 
-## 10. 📅 Cronograma e Metodologia
+## 11. 📅 Cronograma e Metodologia
 
 ### 📋 Divisão de Tarefas Detalhada
 
@@ -283,7 +369,7 @@ Estoque Fertilizante: 10/10 aplicações
    - Menus e painéis de configuração
    - Sistema de diálogos e notificações
 
-2. **Sistema Visual e Animações**
+2. **Sistema Visual**
    - Sprite sheets para personagens e elementos
    - Animações de crescimento das plantas
    - Transições entre estados visuais
@@ -342,60 +428,54 @@ Estoque Fertilizante: 10/10 aplicações
 
 ---
 
-## 🚀 Estratégias de Jogo Recomendadas
-
-1. **Fase Inicial (Dias 1-5):**
-   - Plante apenas 🥬 Alface para fluxo rápido
-   - Economize para primeiro 🚜 Trator
-   - Compre primeiro lote de 🌱 Fertilizante
-
-2. **Fase de Expansão (Dias 6-15):**
-   - Automatize solos de nível 3+ com tratores
-   - Use fertilizante apenas em 🎃 Abóbora
-   - Adquira animais para renda passiva
-
-3. **Fase Avançada (Dias 16+):**
-   - Todos os solos com trator + arador
-   - Fertilizante em todos os cultivos
-   - Balanceie entre produção vegetal e animal
-
----
-
 ## 📁 Estrutura do Projeto
 
 <pre>
 fazenda-idle-2.0/
+├── (Todas as Imagens)
 ├── src/
-│   ├── model/
-│   │   ├── Vegetal.java
+│   ├── br.ufpa.fazenda.engine/
+│   │   ├── ExecutorTarefas.java
+│   │   ├── GameLoop.java
+│   │   └── GerenciadorEventos.java
+│   ├── br.ufpa.fazenda.view/
+│   │   ├── PainelFazenda.java
+│   │   ├── PainelLateral.java
+│   │   ├── RenderizadorAssets.java
+│   │   └── JanelaPrincipal.java
+│   ├── br.ufpa.fazenda.controller/
+│   │   └── PersonagemIA.java
+│   ├── br.ufpa.fazenda.model/
+│   │   ├── FazendaEstado.java
 │   │   ├── Solo.java
-│   │   ├── Animal.java
 │   │   ├── Cercado.java
-│   │   ├── Fazenda.java
-│   │   └── Maquina.java
-│   ├── view/
-│   │   ├── GamePainel.java
-│   │   ├── HUD.java
-│   │   ├── GerenciadorDeSprites.java
-│   │   └── AnimationEngine.java
-│   ├── controller/
-│   │   ├── GameControle.java
-│   │   ├── PlayerControle.java
-│   │   └── AIControle.java
-│   └── util/
-│       ├── Constantes.java
-│       └── CarregadorDeRecursos.java
+│   │   ├── Maquina.java
+│   │   ├── Animal.java
+│   │   └── Vegetal.java
+│   ├── br.ufpa.fazenda.util/
+│   │   └── Constantes.java
+│   └── br.ufpa.fazenda.main/
+│       └── App.java
 ├── assets/
-│   ├── sprites/
-│   │   ├── plantas/
-│   │   ├── animais/
-│   │   ├── Personagem/
-│   │   └── maquinas/
-│   ├── ui/
-│   └── effects/
+│   ├── imagens/
+│   │   ├── grama_bg.png
+│   │   ├── lojinha.png
+│   │   ├── cercado.png
+│   │   ├── solo_arado.png
+│   │   ├── solo_bloqueado.png
+│   │   ├── solo_plantado.png
+│   │   ├── solo_alface.png
+│   │   ├── solo_cenoura.png
+│   │   ├── solo_abobora.png
+│   │   ├── galinha.png
+│   │   ├── ovelha.png
+│   │   ├── vaca.png
+│   │   ├── arador_icon.png
+│   │   ├── trator_icon.png
+│   │   ├── irrigador_icon.png
+│   │   └── fertilizante_icon.png
 └── docs/
-    ├── README.md
-    └── diagramas/
+    └── README.md
 </pre>
 
 ---
