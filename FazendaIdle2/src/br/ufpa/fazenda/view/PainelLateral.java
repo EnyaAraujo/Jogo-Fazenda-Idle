@@ -33,7 +33,7 @@ public class PainelLateral extends JPanel {
         this.setBackground(new Color(245, 245, 220));
         this.setBorder(BorderFactory.createMatteBorder(0, 2, 0, 0, new Color(139, 69, 19)));
 
-        // 1. Cabeçalho (HUD)
+        // 1. Cabeçalho
         JPanel hud = new JPanel(new GridLayout(3, 1, 5, 5));
         hud.setOpaque(false);
         hud.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -56,7 +56,7 @@ public class PainelLateral extends JPanel {
         
         this.add(hud, BorderLayout.NORTH);
 
-        // 2. Corpo (Cards)
+        // 2. Corpo
         layoutCartas = new CardLayout();
         painelConteudo = new JPanel(layoutCartas);
         painelConteudo.setOpaque(false);
@@ -106,9 +106,8 @@ public class PainelLateral extends JPanel {
         atualizarDadosDinamicos();
     }
 
-    // =================================================================================
-    // 🏠 MENU GERAL
-    // =================================================================================
+    //MENU GERAL
+    
     private JPanel criarMenuGeral() {
         JPanel p = new JPanel();
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
@@ -149,9 +148,7 @@ public class PainelLateral extends JPanel {
         layoutCartas.show(painelConteudo, "GERAL");
     }
 
-    // =================================================================================
-    // 🌱 MENU DO SOLO
-    // =================================================================================
+    // MENU SOLO
     public void mostrarMenuSolo(Solo solo) {
         Solo soloAtualizado = FazendaEstado.getInstance().getSolos().get(solo.getId());
         this.soloAtualVisualizado = soloAtualizado;
@@ -197,7 +194,7 @@ public class PainelLateral extends JPanel {
         lblNivel.setAlignmentX(Component.CENTER_ALIGNMENT);
         p.add(lblNivel);
         
-        // Botão Evoluir
+        // Botão pra evoluir
         if (soloAtualizado.getNivel() < 10) {
             double custo = Constantes.CUSTO_EVOLUCAO_BASE * soloAtualizado.getNivel();
             JButton btnEvoluir = new JButton("Evoluir (R$" + (int)custo + ")");
@@ -271,9 +268,7 @@ public class PainelLateral extends JPanel {
             p.add(pPlantas);
         }
 
-        // ===================================================================
-        // 💰 NOVO PAINEL DE LUCRO DETALHADO (Inserido aqui)
-        // ===================================================================
+        // Painel de Lucro
         p.add(Box.createVerticalStrut(10));
         if (soloAtualizado.isOcupado()) {
             JLabel lblLucro = new JLabel(soloAtualizado.getEstimativaLucroHTML());
@@ -285,7 +280,7 @@ public class PainelLateral extends JPanel {
             ));
             p.add(lblLucro);
         }
-        // ===================================================================
+
 
         p.add(Box.createVerticalStrut(10));
         p.add(new JSeparator());
@@ -375,9 +370,7 @@ public class PainelLateral extends JPanel {
         layoutCartas.show(painelConteudo, "SOLO_ATUAL");
     }
 
-    // =================================================================================
-    // 🐔 MENU CERCADO
-    // =================================================================================
+    // Cercado
     public void mostrarCercado(int idCercado) {
         this.soloAtualVisualizado = null;
         this.cercadoAtualVisualizado = FazendaEstado.getInstance().getCercados().get(idCercado);
@@ -424,9 +417,7 @@ public class PainelLateral extends JPanel {
             }
             p.add(barraProgressoAtiva);
             
-            // ===================================================================
-            // 💰 NOVO PAINEL DE LUCRO ANIMAL (Inserido aqui)
-            // ===================================================================
+            // Painel de lucro dos animais
             p.add(Box.createVerticalStrut(10));
             JLabel lblLucro = new JLabel(cercadoAtualVisualizado.getDetalhesLucroHTML());
             lblLucro.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -435,7 +426,7 @@ public class PainelLateral extends JPanel {
                 BorderFactory.createEmptyBorder(5, 5, 5, 5)
             ));
             p.add(lblLucro);
-            // ===================================================================
+            //
             
             p.add(Box.createVerticalStrut(10));
             
@@ -457,9 +448,7 @@ public class PainelLateral extends JPanel {
         layoutCartas.show(painelConteudo, "CERCADO_ATUAL");
     }
 
-    // =================================================================================
-    // 🏪 MENU DA LOJA
-    // =================================================================================
+    // Menu da loja
     public void mostrarLoja() {
         limparReferenciasDinamicas();
         JPanel p = new JPanel();
