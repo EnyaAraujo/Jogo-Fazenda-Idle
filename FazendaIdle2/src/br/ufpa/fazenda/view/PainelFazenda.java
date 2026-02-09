@@ -13,7 +13,7 @@ public class PainelFazenda extends JPanel {
     private JanelaPrincipal janelaMae;
     private Image imgGrama, imgLoja, imgCerca, imgSoloArado, imgSoloBloqueado, imgSoloPlantado;
 
-    // --- ESTADOS DE SELEÇÃO VISUAL ---
+    //ESTADOS DE SELEÇÃO VISUAL
     // -1 significa "nenhum"
     private int idSoloHover = -1;
     private int idSoloSelecionado = -1;
@@ -24,12 +24,10 @@ public class PainelFazenda extends JPanel {
     private boolean lojaHover = false;
     private boolean lojaSelecionada = false;
 
-    // --- MODO DEBUG ---
+    // debugar
     private static final boolean DESENHAR_HITBOXES = false; // Mudei para false para ficar mais bonito agora
 
-    // =================================================================================
-    // 🎛️ CONFIGURAÇÕES DE LAYOUT
-    // =================================================================================
+    // configuracao do layout
     private double LOJA_X = 0.62;     
     private double LOJA_Y = 0.08;     
     private double LOJA_W = 0.25;     
@@ -58,7 +56,7 @@ public class PainelFazenda extends JPanel {
 
         carregarImagens();
 
-        // Listener de Clique
+        // vai receber os cliques do mouse
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -66,7 +64,7 @@ public class PainelFazenda extends JPanel {
             }
         });
 
-        // Listener de Movimento (HOVER)
+        // vai captar os movimentos do mouse
         addMouseMotionListener(new MouseMotionAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
@@ -117,7 +115,7 @@ public class PainelFazenda extends JPanel {
             desenharCercado(g2d, areaCercados[i], i);
         }
         
-        // --- DESENHA CAIXAS DE SELEÇÃO E HOVER (POR CIMA DE TUDO) ---
+        // Desenha caixa de selecao pra indicar q foi selecionado
         desenharEfeitosVisuais(g2d);
     }
     
