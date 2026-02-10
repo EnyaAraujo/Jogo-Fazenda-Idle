@@ -11,7 +11,7 @@ import javax.swing.JPanel;
 public class PainelFazenda extends JPanel {
 
     private JanelaPrincipal janelaMae;
-    private Image imgGrama, imgLoja, imgCerca, imgSoloArado, imgSoloBloqueado, imgSoloPlantado;
+    private Image imgGrama, imgLoja, imgCerca, imgSoloArado, imgSoloBloqueado, imgSoloPlantado, imgCeleiro;
 
     //ESTADOS DE SELEÇÃO VISUAL
     // -1 significa "nenhum"
@@ -81,6 +81,7 @@ public class PainelFazenda extends JPanel {
         imgSoloArado = assets.getImagem("solo_arado.png", true);
         imgSoloBloqueado = assets.getImagem("solo_bloqueado.png", true);
         imgSoloPlantado = assets.getImagem("solo_plantado.png", true);
+        imgCeleiro = assets.getImagem("celeiro.png", true);
     }
 
     @Override
