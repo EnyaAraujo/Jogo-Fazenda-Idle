@@ -31,6 +31,13 @@ public class JanelaPrincipal extends JFrame implements GerenciadorEventos, Actio
         
         setLayout(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
+
+
+        Image icone = RenderizadorAssets.get().getImagem("celeiro.png", true);
+        
+        if (icone != null) {
+            setIconImage(icone); // <--- Essa é a linha que faz a mágica
+        }
         
         painelLateral = new PainelLateral(this); 
         painelFazenda = new PainelFazenda(this);
