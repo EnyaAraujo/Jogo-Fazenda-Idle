@@ -10,6 +10,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Consumer;
 
 public class JanelaPrincipal extends JFrame implements GerenciadorEventos, ActionListener {
 
@@ -18,6 +21,7 @@ public class JanelaPrincipal extends JFrame implements GerenciadorEventos, Actio
     private GameLoop gameLoop;
     private Timer timerUI; 
     private ExecutorTarefas executor; 
+    private Map<String, Consumer<String>> mapaComandos;
 
     public JanelaPrincipal() {
         setTitle("Fazenda Idle 2.0");
@@ -44,6 +48,9 @@ public class JanelaPrincipal extends JFrame implements GerenciadorEventos, Actio
 
         executor = ExecutorTarefas.getInstance();
         
+        // Inicializa o mapa de comandos ANTES de começar o jogo
+        inicializarComandos();
+
         gameLoop = new GameLoop(this);
         gameLoop.start();
         
@@ -61,12 +68,183 @@ public class JanelaPrincipal extends JFrame implements GerenciadorEventos, Actio
         setVisible(true);
     }
     
-    // --- MÉTODOS DE NAVEGAÇÃO E SELEÇÃO VISUAL ---
+    // --- 1. CONFIGURAÇÃO DOS COMANDOS (SETUP) ---
     
+    private void inicializarComandos() {
+        mapaComandos = new HashMap<>();
+
+        // Comandos Simples (Exatos)
+        mapaComandos.put("CMD_TOGGLE_IA", this::executarToggleIA);
+        mapaComandos.put("CMD_PAUSE", cmd -> gameLoop.alternarPause());
+        mapaComandos.put("CMD_SAIR", this::executarSair);
+        mapaComandos.put("CMD_COMPRAR_FERTILIZANTE", this::executarComprarFertilizante);
+
+        // Comandos com Argumentos (Prefixos)
+        mapaComandos.put("CMD_LOJA_COMPRAR_ANIMAL", this::executarComprarAnimal);
+        mapaComandos.put("CMD_LOJA_COMPRAR_MAQUINA", this::executarComprarMaquina);
+        mapaComandos.put("CMD_EVOLUIR_SOLO", this::executarEvoluirSolo);
+        mapaComandos.put("CMD_DESBLOQUEAR_SOLO", this::executarDesbloquearSolo);
+        mapaComandos.put("CMD_PLANTAR", this::executarPlantar);
+        mapaComandos.put("CMD_COLHER", this::executarColher);
+        mapaComandos.put("CMD_ARRANCAR", this::executarArrancar);
+        mapaComandos.put("CMD_COLETAR_ANIMAL", this::executarColetarAnimal);
+    }
+
+    // --- 2. O DESPACHANTE DE AÇÕES (PROCESSADOR) ---
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        String cmd = e.getActionCommand();
+        executor.executar(() -> processarAcao(cmd));
+    }
+    
+    private void processarAcao(String cmd) {
+        // 1. Tenta achar comando exato
+        if (mapaComandos.containsKey(cmd)) {
+            mapaComandos.get(cmd).accept(cmd);
+            return;
+        }
+
+        // 2. Se não achou, procura por prefixo
+        for (String chave : mapaComandos.keySet()) {
+            if (cmd.startsWith(chave)) {
+                mapaComandos.get(chave).accept(cmd);
+                return;
+            }
+        }
+
+        System.err.println("Comando não reconhecido: " + cmd);
+    }
+
+    // --- 3. MÉTODOS DE AÇÃO (LÓGICA ESPECÍFICA) ---
+
+    private void executarToggleIA(String cmd) {
+        FazendaEstado fazenda = FazendaEstado.getInstance();
+        if (fazenda.isModoIAAtivado()) {
+            gameLoop.desativarIA();
+            fazenda.setModoIAAtivado(false);
+        } else {
+            gameLoop.ativarIA();
+            fazenda.setModoIAAtivado(true);
+        }
+    }
+
+    private void executarArrancar(String cmd) {
+        // cmd ex: CMD_ARRANCAR_2
+        int id = Integer.parseInt(cmd.split("_")[2]);
+        FazendaEstado.getInstance().getSolos().get(id).arrancar();
+        SwingUtilities.invokeLater(() -> selecionarSolo(id));
+    }
+
+    private void executarPlantar(String cmd) {
+        // cmd ex: CMD_PLANTAR_2_MILHO
+        String[] parts = cmd.split("_");
+        int id = Integer.parseInt(parts[2]);
+        Vegetal v = Vegetal.valueOf(parts[3]);
+        
+        if(FazendaEstado.getInstance().plantarManual(id, v)) {
+            SwingUtilities.invokeLater(() -> selecionarSolo(id));
+        }
+    }
+    
+    private void executarColher(String cmd) {
+        // cmd ex: CMD_COLHER_2
+        int id = Integer.parseInt(cmd.split("_")[2]);
+        FazendaEstado fazenda = FazendaEstado.getInstance();
+        Solo s = fazenda.getSolos().get(id);
+        double val = s.colher();
+        fazenda.ganharDinheiro(val);
+        SwingUtilities.invokeLater(() -> selecionarSolo(id));
+    }
+
+    private void executarComprarAnimal(String cmd) {
+        String especieStr = cmd.substring("CMD_LOJA_COMPRAR_ANIMAL_".length());
+        Animal animal = Animal.valueOf(especieStr);
+        
+        int resultado = FazendaEstado.getInstance().comprarAnimalComVerificacao(animal);
+        
+        SwingUtilities.invokeLater(() -> {
+            if (resultado == 0) mostrarAviso("Sucesso! " + animal.getNome() + " enviado para um cercado novo/vazio.");
+            else if (resultado == 1) mostrarErro("Dinheiro insuficiente para comprar " + animal.getNome() + "!");
+            else if (resultado == 2) mostrarErro("Todos os cercados para " + animal.getNome() + " estão CHEIOS (Máx 3)!");
+            else if (resultado == 3) mostrarAviso("Mais uma " + animal.getNome() + " adicionada ao cercado existente!");
+        });
+    }
+
+    private void executarComprarMaquina(String cmd) {
+        String maqStr = cmd.substring("CMD_LOJA_COMPRAR_MAQUINA_".length());
+        Maquina m = Maquina.valueOf(maqStr);
+        
+        int res = FazendaEstado.getInstance().comprarMaquinaComVerificacao(m);
+        
+        SwingUtilities.invokeLater(() -> {
+            if (res == 0) mostrarAviso(m.getNome() + " comprada! Equipe-a em um solo.");
+            else if (res == 1) mostrarErro("Dinheiro insuficiente!");
+            else if (res == 2) mostrarErro("Limite Atingido!\nVocê já tem máquinas suficientes para todos os solos.");
+        });
+    }
+    
+    private void executarComprarFertilizante(String cmd) {
+        if(!FazendaEstado.getInstance().comprarFertilizante()) {
+             SwingUtilities.invokeLater(() -> mostrarErro("Dinheiro insuficiente!"));
+        } else {
+             SwingUtilities.invokeLater(() -> painelLateral.repaint());
+        }
+    }
+
+    private void executarEvoluirSolo(String cmd) {
+        int id = Integer.parseInt(cmd.split("_")[3]);
+        if (FazendaEstado.getInstance().evoluirSolo(id)) {
+            SwingUtilities.invokeLater(() -> {
+                selecionarSolo(id); 
+                mostrarAviso("Solo evoluído com sucesso!");
+            });
+        } else {
+            SwingUtilities.invokeLater(() -> mostrarErro("Dinheiro insuficiente para evoluir!"));
+        }
+    }
+
+    private void executarDesbloquearSolo(String cmd) {
+        int id = Integer.parseInt(cmd.split("_")[3]);
+        if (FazendaEstado.getInstance().desbloquearSolo(id)) {
+            SwingUtilities.invokeLater(() -> {
+                selecionarLoja(); 
+                mostrarAviso("Solo desbloqueado!");
+            });
+        } else {
+            SwingUtilities.invokeLater(() -> mostrarErro("Dinheiro insuficiente!"));
+        }
+    }
+
+    private void executarColetarAnimal(String cmd) {
+        int idCercado = Integer.parseInt(cmd.split("_")[3]);
+        FazendaEstado fazenda = FazendaEstado.getInstance();
+        Cercado c = fazenda.getCercados().get(idCercado);
+        double valor = c.coletarProdutos();
+        fazenda.ganharDinheiro(valor);
+        SwingUtilities.invokeLater(() -> selecionarCercado(idCercado));
+    }
+
+    private void executarSair(String cmd) {
+        SwingUtilities.invokeLater(() -> {
+            int confirm = JOptionPane.showConfirmDialog(this, 
+                "Deseja realmente sair do jogo?", "Confirmar Saída", 
+                JOptionPane.YES_NO_OPTION);
+            
+            if (confirm == JOptionPane.YES_OPTION) {
+                gameLoop.parar();
+                timerUI.stop();
+                executor.parar();
+                this.dispose();
+                System.exit(0);
+            }
+        });
+    }
+
+    // --- 4. MÉTODOS AUXILIARES E DE NAVEGAÇÃO ---
+
     public void selecionarSolo(int id) { 
-        // Atualiza a lógica do menu lateral
         painelLateral.mostrarMenuSolo(FazendaEstado.getInstance().getSolos().get(id));
-        // Atualiza o visual da caixa branca no painel da fazenda
         painelFazenda.setSoloSelecionado(id);
     }
     
@@ -85,131 +263,15 @@ public class JanelaPrincipal extends JFrame implements GerenciadorEventos, Actio
         painelFazenda.limparSelecao();
     }
 
-    @Override
-    public void actionPerformed(ActionEvent e) {
-        String cmd = e.getActionCommand();
-        executor.executar(() -> processarAcao(cmd));
-    }
-    
-    private void processarAcao(String cmd) {
-        FazendaEstado fazenda = FazendaEstado.getInstance();
-
-        if (cmd.equals("CMD_TOGGLE_IA")) {
-            if (fazenda.isModoIAAtivado()) {
-                gameLoop.desativarIA();
-                fazenda.setModoIAAtivado(false);
-            } else {
-                gameLoop.ativarIA();
-                fazenda.setModoIAAtivado(true);
-            }
-        }
-        else if (cmd.startsWith("CMD_LOJA_COMPRAR_ANIMAL_")) {
-            String especieStr = cmd.substring("CMD_LOJA_COMPRAR_ANIMAL_".length());
-            Animal animal = Animal.valueOf(especieStr);
-            
-            int resultado = fazenda.comprarAnimalComVerificacao(animal);
-            
-            SwingUtilities.invokeLater(() -> {
-                if (resultado == 0) mostrarAviso("Sucesso! " + animal.getNome() + " enviado para um cercado novo/vazio.");
-                else if (resultado == 1) mostrarErro("Dinheiro insuficiente para comprar " + animal.getNome() + "!");
-                else if (resultado == 2) mostrarErro("Todos os cercados para " + animal.getNome() + " estão CHEIOS (Máx 3)!");
-                else if (resultado == 3) mostrarAviso("Mais uma " + animal.getNome() + " adicionada ao cercado existente!");
-            });
-        }
-        else if (cmd.startsWith("CMD_LOJA_COMPRAR_MAQUINA_")) {
-            String maqStr = cmd.substring("CMD_LOJA_COMPRAR_MAQUINA_".length());
-            Maquina m = Maquina.valueOf(maqStr);
-            
-            int res = fazenda.comprarMaquinaComVerificacao(m);
-            SwingUtilities.invokeLater(() -> {
-                if (res == 0) mostrarAviso(m.getNome() + " comprada! Equipe-a em um solo.");
-                else if (res == 1) mostrarErro("Dinheiro insuficiente!");
-                else if (res == 2) mostrarErro("Limite Atingido!\nVocê já tem máquinas suficientes para todos os solos.");
-            });
-        }
-        else if (cmd.startsWith("CMD_EVOLUIR_SOLO_")) {
-            int id = Integer.parseInt(cmd.split("_")[3]);
-            if (fazenda.evoluirSolo(id)) {
-                SwingUtilities.invokeLater(() -> {
-                    selecionarSolo(id); 
-                    mostrarAviso("Solo evoluído com sucesso!");
-                });
-            } else {
-                SwingUtilities.invokeLater(() -> mostrarErro("Dinheiro insuficiente para evoluir!"));
-            }
-        }
-        else if (cmd.startsWith("CMD_DESBLOQUEAR_SOLO_")) {
-            int id = Integer.parseInt(cmd.split("_")[3]);
-            if (fazenda.desbloquearSolo(id)) {
-                SwingUtilities.invokeLater(() -> {
-                    selecionarLoja(); 
-                    mostrarAviso("Solo desbloqueado!");
-                });
-            } else {
-                SwingUtilities.invokeLater(() -> mostrarErro("Dinheiro insuficiente!"));
-            }
-        }
-        else if (cmd.startsWith("CMD_PLANTAR_")) {
-            String[] parts = cmd.split("_");
-            int id = Integer.parseInt(parts[2]);
-            Vegetal v = Vegetal.valueOf(parts[3]);
-            
-            if(fazenda.plantarManual(id, v)) {
-                SwingUtilities.invokeLater(() -> selecionarSolo(id));
-            }
-        }
-        else if (cmd.startsWith("CMD_COLHER_")) {
-            int id = Integer.parseInt(cmd.split("_")[2]);
-            Solo s = fazenda.getSolos().get(id);
-            double val = s.colher();
-            fazenda.ganharDinheiro(val);
-            SwingUtilities.invokeLater(() -> selecionarSolo(id));
-        }
-        else if (cmd.startsWith("CMD_ARRANCAR_")) {
-            int id = Integer.parseInt(cmd.split("_")[2]);
-            fazenda.getSolos().get(id).arrancar();
-            SwingUtilities.invokeLater(() -> selecionarSolo(id));
-        }
-        else if (cmd.startsWith("CMD_COLETAR_ANIMAL_")) {
-            int idCercado = Integer.parseInt(cmd.split("_")[3]);
-            Cercado c = fazenda.getCercados().get(idCercado);
-            double valor = c.coletarProdutos();
-            fazenda.ganharDinheiro(valor);
-            SwingUtilities.invokeLater(() -> selecionarCercado(idCercado));
-        }
-        else if (cmd.equals("CMD_PAUSE")) {
-            gameLoop.alternarPause();
-        }
-        else if (cmd.equals("CMD_COMPRAR_FERTILIZANTE")) {
-             if(!fazenda.comprarFertilizante()) {
-                 SwingUtilities.invokeLater(() -> mostrarErro("Dinheiro insuficiente!"));
-             } else {
-                 SwingUtilities.invokeLater(() -> painelLateral.repaint());
-             }
-        }
-        else if (cmd.equals("CMD_SAIR")) {
-            SwingUtilities.invokeLater(() -> {
-                int confirm = JOptionPane.showConfirmDialog(this, 
-                    "Deseja realmente sair do jogo?", "Confirmar Saída", 
-                    JOptionPane.YES_NO_OPTION);
-                
-                if (confirm == JOptionPane.YES_OPTION) {
-                    gameLoop.parar();
-                    timerUI.stop();
-                    executor.parar();
-                    this.dispose();
-                    System.exit(0);
-                }
-            });
-        }
-    }
-
     private void mostrarErro(String msg) {
         JOptionPane.showMessageDialog(this, msg, "Atenção", JOptionPane.ERROR_MESSAGE);
     }
+    
     private void mostrarAviso(String msg) {
         JOptionPane.showMessageDialog(this, msg, "Informação", JOptionPane.INFORMATION_MESSAGE);
     }
+
+    // --- 5. IMPLEMENTAÇÃO DA INTERFACE GERENCIADOR EVENTOS ---
 
     @Override
     public void aoAtualizarStatusFazenda(double dinheiro, int dia, int estoqueFert) {
@@ -229,28 +291,15 @@ public class JanelaPrincipal extends JFrame implements GerenciadorEventos, Actio
     @Override
     public void aoVencerJogo() {
         SwingUtilities.invokeLater(() -> {
-            // Para o jogo momentaneamente para o usuário ler
             gameLoop.alternarPause(); 
-            
             Object[] options = {"Continuar Jogando", "Sair do Jogo"};
-            
             int n = JOptionPane.showOptionDialog(this,
-                "PARABÉNS!\n\n" +
-                "Você atingiu a meta de R$ " + Constantes.DINHEIRO_VITORIA + "!\n" +
-                "Sua fazenda é um sucesso absoluto.",
-                "Vitória!",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.INFORMATION_MESSAGE,
-                null,     // ícone padrão
-                options,  // botões
-                options[0]); // botão padrão
+                "PARABÉNS!\n\nVocê atingiu a meta de R$ " + Constantes.DINHEIRO_VITORIA + "!\nSua fazenda é um sucesso absoluto.",
+                "Vitória!", JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE,
+                null, options, options[0]);
 
-            if (n == 1) { // Se escolheu "Sair do Jogo" (índice 1)
-                System.exit(0);
-            } else {
-                // Se escolheu "Continuar", apenas despausa
-                gameLoop.alternarPause();
-            }
+            if (n == 1) System.exit(0);
+            else gameLoop.alternarPause();
         });
     }
 }
