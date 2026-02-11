@@ -45,10 +45,18 @@ public class PainelFazenda extends JPanel {
     private double CERCA_H = 0.20;      
     private double CERCA_ESPACO_TOTAL = 0.10; 
 
+
+    private double CELEIRO_X = 0.05;
+    private double CELEIRO_Y = 0.05;
+    private double CELEIRO_H = 0.25;
+    private double CELEIRO_W = 0.20;
+
     // Áreas lógicas (Hitboxes)
     private Rectangle areaLoja = new Rectangle();
     private Rectangle[] areaSolos = new Rectangle[Constantes.QTD_SOLOS];
     private Rectangle[] areaCercados = new Rectangle[Constantes.QTD_CERCADOS];
+    private Rectangle areaCeleiro = new Rectangle();
+    
 
     public PainelFazenda(JanelaPrincipal janela) {
         this.janelaMae = janela;
@@ -108,6 +116,8 @@ public class PainelFazenda extends JPanel {
         // --- DESENHA ELEMENTOS ---
         desenharLoja(g2d, areaLoja);
 
+        desenharCeleiro(g2d, areaCeleiro);
+
         for (int i = 0; i < Constantes.QTD_SOLOS; i++) {
             desenharSolo(g2d, areaSolos[i], i);
         }
@@ -118,7 +128,18 @@ public class PainelFazenda extends JPanel {
         
         // Desenha caixa de selecao pra indicar q foi selecionado
         desenharEfeitosVisuais(g2d);
+        }
+
+     private void desenharCeleiro(Graphics2D g, Rectangle r) {
+        if (DESENHAR_HITBOXES) {
+            g.setColor(Color.RED); g.drawRect(r.x, r.y, r.width, r.height);
+        }
+        // Desenha a imagem se ela foi carregada
+        if (imgCeleiro != null) {
+            g.drawImage(imgCeleiro, r.x, r.y, r.width, r.height, null);
+        }
     }
+}
     
     private void atualizarHitboxes(int w, int h) {
         // Loja
@@ -151,6 +172,13 @@ public class PainelFazenda extends JPanel {
             if (areaCercados[i] == null) areaCercados[i] = new Rectangle();
             areaCercados[i].setBounds(x, cY, cW, cH);
         }
+    
+        int celX = (int)(w * CELEIRO_X); 
+        int celY = (int)(h * CELEIRO_Y);
+        int celW = (int)(w * CELEIRO_W); 
+        int celH = (int)(h * CELEIRO_H);
+        areaCeleiro.setBounds(celX, celY, celW, celH);
+    
     }
 
     // --- LÓGICA DE VISUALIZAÇÃO DE HOVER E SELECT ---
